@@ -1,75 +1,70 @@
-import { Colors } from '@/constants/colors';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // 🟢 Importamos a fita métrica
 
-export default function TabsLayout() {
-  
-  // 🟢 Pega as medidas exatas do sistema operacional do celular (bateria, botões, etc)
-  const insets = useSafeAreaInsets(); 
-
+export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.secondary,
-        tabBarInactiveTintColor: '#888888',
+
+        tabBarActiveTintColor: '#FF6B1A',
+        tabBarInactiveTintColor: '#999',
+
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 0,
-          elevation: 10,
-          shadowColor: '#000',
-          shadowOpacity: 0.1,
-          shadowOffset: { width: 0, height: -3 },
-          
-          // 🟢 A MÁGICA AQUI: 
-          // Tamanho base (60) + o tamanho exato dos botões de navegação do Android (insets.bottom)
-          height: 60 + insets.bottom, 
-          
-          // 🟢 O respiro inferior ajustável:
-          // Se o celular tiver botões (insets.bottom > 0), o respiro é o tamanho dos botões.
-          // Se for um iPhone sem botões, o respiro é 10.
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 10, 
+          height: 70,
+          paddingBottom: 10,
+          paddingTop: 10,
         },
+
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '600',
-        }
+        },
       }}
     >
       <Tabs.Screen
-        name="index" // Vai puxar o arquivo index.tsx (Home)
+        name="index"
         options={{
           title: 'Home',
-          // Função que desenha o ícone. O 'color' já vem automático dependendo se está ativo ou inativo.
-          tabBarIcon: ({ color }) => <FontAwesome5 name="home" size={24} color={color} />,
+
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="home" size={size} color={color} />
+          ),
         }}
       />
 
       <Tabs.Screen
-        name="buscar" // Vai puxar o arquivo buscar.tsx
+        name="noticias"
         options={{
-          title: 'Buscar',
-          tabBarIcon: ({ color }) => <FontAwesome5 name="search" size={24} color={color} />,
+          title: 'Notícias',
+
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="file-text" size={size} color={color} />
+          ),
         }}
       />
 
       <Tabs.Screen
-        name="agenda" // Vai puxar o arquivo agenda.tsx
+        name="agenda"
         options={{
           title: 'Agenda',
-          tabBarIcon: ({ color }) => <FontAwesome5 name="calendar-alt" size={24} color={color} />,
+
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="calendar" size={size} color={color} />
+          ),
         }}
       />
 
       <Tabs.Screen
-        name="perfil" // Vai puxar o arquivo perfil.tsx
+        name="perfil"
         options={{
           title: 'Perfil',
-          tabBarIcon: ({ color }) => <FontAwesome5 name="user-alt" size={24} color={color} />,
+
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="user" size={size} color={color} />
+          ),
         }}
       />
-
     </Tabs>
   );
 }

@@ -2,7 +2,7 @@ import { BotaoCustomizado } from "@/src/components/BotaoCustomizado";
 import { InputCustomizado } from "@/src/components/InputCustomizado";
 import { FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
+import { router, useRouter } from 'expo-router';
 import { useState } from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -171,7 +171,7 @@ export default function Login() {
             />
 
             {/* Botão de Ação Principal */}
-            <BotaoCustomizado text="Entrar" aoClicar={executarLogin} />
+            <BotaoCustomizado text="Entrar" aoClicar={() => router.replace('/(tabs)')}/>
           </View>
         </View>
       </View>

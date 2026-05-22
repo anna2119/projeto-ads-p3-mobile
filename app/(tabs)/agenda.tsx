@@ -1,312 +1,496 @@
-import { Colors } from '@/constants/colors';
-import axios from 'axios';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather, Ionicons } from '@expo/vector-icons';
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
-const nomesMeses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-export default function Agenda() {
-  const dataHoje = new Date();
-  const [mesVisivel, setMesVisivel] = useState(dataHoje.getMonth());
-  const [anoVisivel, setAnoVisivel] = useState(dataHoje.getFullYear());
-
-  const formatarData = (ano: number, mes: number, dia: number) => {
-    return `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-  };
-  const [dataSelecionada, setDataSelecionada] = useState(formatarData(dataHoje.getFullYear(), dataHoje.getMonth(), dataHoje.getDate()));
-
-  const [meusAgendamentos, setMeusAgendamentos] = useState<any[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const alunoId = 1;
-
-  // --- ESTADOS GERAIS PARA AULAS ---
-  const [aulaSelecionada, setAulaSelecionada] = useState<any>(null);
-
-  // --- ESTADOS DO MODAL DE REMARCAR ---
-  const [modalRemarcarVisivel, setModalRemarcarVisivel] = useState(false);
-  const [novaData, setNovaData] = useState('');
-  const [novaHora, setNovaHora] = useState('');
-
-  // --- ESTADOS DO MODAL DE CANCELAR ---
-  const [modalCancelarVisivel, setModalCancelarVisivel] = useState(false);
-  const [justificativa, setJustificativa] = useState('');
-
-  // ⚠️ COLOQUE SEU IP AQUI
-  const apiUrl = `http://192.168.0.13:8080/agendamentos`; 
-
-  const buscarAgendamentos = async () => {
-    setCarregando(true);
-    try {
-      const response = await axios.get(`${apiUrl}/aluno/${alunoId}`);
-      setMeusAgendamentos(response.data);
-    } catch (error) {
-      console.log(error);
-      Alert.alert('Erro', 'Não foi possível carregar as aulas.');
-    } finally {
-      setCarregando(false);
-    }
-  };
-
-  useEffect(() => {
-    buscarAgendamentos();
-  }, []);
-
-  // --- FUNÇÃO PARA CANCELAR COM JUSTIFICATIVA ---
-  const confirmarCancelamento = async () => {
-    // Trava de segurança: impede o envio se estiver vazio
-    if (justificativa.trim() === '') {
-      Alert.alert('Atenção', 'Você precisa escrever um motivo para cancelar.');
-      return;
-    }
-
-    try {
-      // Envia o id da aula na URL e a justificativa no corpo da requisição (Body)
-      await axios.put(`${apiUrl}/${aulaSelecionada.id}/cancelar`, { justificativa: justificativa });
-      
-      Alert.alert('Sucesso', 'Aula cancelada!');
-      setModalCancelarVisivel(false);
-      setJustificativa(''); // Limpa o campo
-      buscarAgendamentos(); 
-    } catch (error) {
-      console.log(error);
-      Alert.alert('Erro', 'Não foi possível cancelar a aula.');
-    }
-  };
-
-  const requisitarRemarcacao = async () => {
-    try {
-      const horaFormatada = novaHora.length === 5 ? `${novaHora}:00` : novaHora;
-      const dadosAtualizados = { ...aulaSelecionada, data: novaData, hora: horaFormatada };
-
-      await axios.put(`${apiUrl}/${aulaSelecionada.id}/remarcar`, dadosAtualizados);
-      Alert.alert('Sucesso', 'Aula remarcada!');
-      setModalRemarcarVisivel(false);
-      buscarAgendamentos(); 
-    } catch (error) {
-      console.log(error);
-      Alert.alert('Erro', 'Não foi possível remarcar. O horário pode estar ocupado.');
-    }
-  };
-
-  const abrirOpcoesAula = (agendamento: any) => {
-    if (agendamento.status === 'CANCELADO') {
-      Alert.alert('Aviso', `Cancelado pelo motivo: ${agendamento.justificativaCancelamento || 'Não informado'}`);
-      return;
-    }
-
-    Alert.alert(
-      'Opções da Aula',
-      `O que deseja fazer com a aula de ${agendamento.professor?.nome}?`,
-      [
-        {
-          text: 'Cancelar Aula',
-          style: 'destructive',
-          onPress: () => {
-            setAulaSelecionada(agendamento);
-            setJustificativa(''); // Zera o texto sempre que abrir
-            setModalCancelarVisivel(true); // Abre a janelinha de cancelar
-          }
-        },
-        {
-          text: 'Remarcar',
-          onPress: () => {
-            setAulaSelecionada(agendamento);
-            setNovaData(agendamento.data);
-            setNovaHora(agendamento.hora.substring(0, 5));
-            setModalRemarcarVisivel(true); // Abre a janelinha de remarcar
-          }
-        },
-        { text: 'Fechar', style: 'cancel' }
-      ]
-    );
-  };
-
-  // --- LÓGICA DO CALENDÁRIO ---
-  const totalDiasMes = new Date(anoVisivel, mesVisivel + 1, 0).getDate();
-  const primeiroDiaSemana = new Date(anoVisivel, mesVisivel, 1).getDay();
-
-  const mudarMes = (delta: number) => {
-    let novoMes = mesVisivel + delta;
-    let novoAno = anoVisivel;
-    if (novoMes < 0) { novoMes = 11; novoAno--; } 
-    else if (novoMes > 11) { novoMes = 0; novoAno++; }
-    setMesVisivel(novoMes); setAnoVisivel(novoAno);
-  };
-
-  const aulasDoDia = meusAgendamentos.filter((aula) => aula.data === dataSelecionada);
-  const [, mesSelecionado, diaSelecionado] = dataSelecionada.split('-');
-
+export default function AgendaScreen() {
   return (
-    <SafeAreaView style={estilos.recipientePrincipal}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={estilos.conteudo}>
-        <Text style={estilos.textoTitulo}>Minha Agenda</Text>
-
-        <View style={estilos.cartaoCalendario}>
-          <View style={estilos.cabecalhoMes}>
-            <TouchableOpacity onPress={() => mudarMes(-1)} style={estilos.botaoSeta}>
-              <Text style={estilos.seta}>{'<'}</Text>
-            </TouchableOpacity>
-            <Text style={estilos.textoMes}>{nomesMeses[mesVisivel]} {anoVisivel}</Text>
-            <TouchableOpacity onPress={() => mudarMes(1)} style={estilos.botaoSeta}>
-              <Text style={estilos.seta}>{'>'}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={estilos.linhaDiasSemana}>
-            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia, index) => (
-              <Text key={index} style={estilos.diaSemana}>{dia}</Text>
-            ))}
-          </View>
-
-          <View style={estilos.gridDias}>
-            {Array.from({ length: primeiroDiaSemana }).map((_, index) => (
-              <View key={`vazio-${index}`} style={estilos.bolinhaDia} />
-            ))}
-            {Array.from({ length: totalDiasMes }).map((_, i) => {
-              const dia = i + 1;
-              const dataDesteBotao = formatarData(anoVisivel, mesVisivel, dia);
-              const isSelecionado = dataDesteBotao === dataSelecionada;
-              const temAulaAtiva = meusAgendamentos.some(aula => aula.data === dataDesteBotao && aula.status !== 'CANCELADO');
-
-              return (
-                <TouchableOpacity 
-                  key={dia} 
-                  style={[estilos.bolinhaDia, isSelecionado && estilos.diaSelecionado]}
-                  onPress={() => setDataSelecionada(dataDesteBotao)}
-                >
-                  <Text style={[estilos.textoDia, isSelecionado && estilos.textoDiaSelecionado]}>{dia}</Text>
-                  {temAulaAtiva && <View style={[estilos.pontoIndicador, isSelecionado && estilos.pontoIndicadorSelecionado]} />}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.header}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.titulo}>Minha Agenda</Text>
+          <Text style={styles.subtitulo}>
+            Gerencie suas aulas, mentorias e compromissos.
+          </Text>
         </View>
 
-        <Text style={estilos.subtitulo}>Aulas Marcadas ({diaSelecionado}/{mesSelecionado})</Text>
+        <View style={styles.iconsHeader}>
+          <Feather name="calendar" size={26} color="#555" />
+          <Ionicons name="notifications-outline" size={30} color="#555" />
+        </View>
+      </View>
 
-        {carregando ? (
-          <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />
-        ) : aulasDoDia.length === 0 ? (
-          <Text style={{ textAlign: 'center', marginTop: 20, color: '#888' }}>Nenhuma aula marcada para este dia.</Text>
-        ) : (
-          aulasDoDia.map((agendamento) => {
-            const isCancelado = agendamento.status === 'CANCELADO';
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity style={styles.tabAtiva}>
+          <Feather name="calendar" size={20} color="#FFF" />
+          <Text style={styles.tabAtivaTexto}>Calendário</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.tab}>
+          <Feather name="list" size={20} color="#666" />
+          <Text style={styles.tabTexto}>Lista</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.tab}>
+          <Feather name="inbox" size={20} color="#666" />
+          <Text style={styles.tabTexto}>Solicitações</Text>
+
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>3</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.calendarioCard}>
+        <View style={styles.calendarioHeader}>
+          <Feather name="chevron-left" size={24} color="#222" />
+          <Text style={styles.mesTexto}>Maio 2026</Text>
+
+          <TouchableOpacity style={styles.hojeBtn}>
+            <Text style={styles.hojeTexto}>Hoje</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.diasSemana}>
+          {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((dia) => (
+            <Text key={dia} style={styles.diaSemana}>
+              {dia}
+            </Text>
+          ))}
+        </View>
+
+        <View style={styles.gridCalendario}>
+          {Array.from({ length: 35 }, (_, i) => i + 1).map((dia) => {
+            const ativo = dia === 20;
+            const temEvento = [5, 7, 12, 14, 18, 20, 22, 25, 27, 29].includes(dia);
+
             return (
-              <TouchableOpacity 
-                key={agendamento.id} 
-                style={[estilos.cartaoAgendamento, isCancelado && estilos.cartaoCancelado]}
-                onPress={() => abrirOpcoesAula(agendamento)}
+              <TouchableOpacity
+                key={dia}
+                style={ativo ? styles.diaAtivo : styles.diaNormal}
               >
-                <View>
-                  <Text style={[estilos.nomeProfessor, isCancelado && estilos.textoCancelado]}>
-                    Prof. {agendamento.professor?.nome || `ID: ${agendamento.professor?.id}`}
-                  </Text>
-                  <Text style={[estilos.materia, isCancelado && estilos.textoCancelado]}>Status: {agendamento.status}</Text>
-                </View>
-                <View style={[estilos.tagHorario, isCancelado && estilos.tagHorarioCancelado]}>
-                  <Text style={[estilos.textoHorario, isCancelado && estilos.textoCancelado]}>
-                    {agendamento.hora.substring(0, 5)}
-                  </Text>
-                </View>
+                <Text style={ativo ? styles.textDiaAtivo : styles.textDia}>
+                  {dia}
+                </Text>
+
+                {temEvento && (
+                  <View
+                    style={[
+                      styles.bolinha,
+                      {
+                        backgroundColor:
+                          dia % 2 === 0 ? '#FF6B1A' : '#0057B8',
+                      },
+                    ]}
+                  />
+                )}
               </TouchableOpacity>
             );
-          })
-        )}
-      </ScrollView>
-
-      {/* --- MODAL DE REMARCAR --- */}
-      <Modal animationType="slide" transparent={true} visible={modalRemarcarVisivel} onRequestClose={() => setModalRemarcarVisivel(false)}>
-        <View style={estilos.modalFundo}>
-          <View style={estilos.modalCartao}>
-            <Text style={estilos.modalTitulo}>Remarcar Aula</Text>
-            <Text style={estilos.modalLabel}>Nova Data (YYYY-MM-DD):</Text>
-            <TextInput style={estilos.modalInput} value={novaData} onChangeText={setNovaData} placeholder="Ex: 2026-05-20" />
-            <Text style={estilos.modalLabel}>Novo Horário (HH:MM):</Text>
-            <TextInput style={estilos.modalInput} value={novaHora} onChangeText={setNovaHora} placeholder="Ex: 15:30" />
-            <View style={estilos.modalBotoes}>
-              <TouchableOpacity style={estilos.modalBotaoCancelar} onPress={() => setModalRemarcarVisivel(false)}>
-                <Text style={estilos.modalTextoBotaoCancelar}>Voltar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={estilos.modalBotaoSalvar} onPress={requisitarRemarcacao}>
-                <Text style={estilos.modalTextoBotaoSalvar}>Confirmar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          })}
         </View>
-      </Modal>
 
-      {/* --- NOVO MODAL DE CANCELAR --- */}
-      <Modal animationType="fade" transparent={true} visible={modalCancelarVisivel} onRequestClose={() => setModalCancelarVisivel(false)}>
-        <View style={estilos.modalFundo}>
-          <View style={estilos.modalCartao}>
-            <Text style={estilos.modalTitulo}>Motivo do Cancelamento</Text>
-            
-            <Text style={estilos.modalLabel}>Justificativa (Obrigatório):</Text>
-            <TextInput 
-              style={[estilos.modalInput, { height: 80, textAlignVertical: 'top' }]} 
-              value={justificativa} 
-              onChangeText={setJustificativa}
-              placeholder="Explique por que está cancelando..."
-              multiline={true}
-            />
-
-            <View style={estilos.modalBotoes}>
-              <TouchableOpacity style={estilos.modalBotaoCancelar} onPress={() => setModalCancelarVisivel(false)}>
-                <Text style={estilos.modalTextoBotaoCancelar}>Voltar</Text>
-              </TouchableOpacity>
-              
-              {/* Se o texto estiver vazio, o botão fica cinza e desabilitado visualmente */}
-              <TouchableOpacity 
-                style={[estilos.modalBotaoSalvar, justificativa.trim() === '' && { backgroundColor: '#A0A0A0' }]} 
-                onPress={confirmarCancelamento}
-              >
-                <Text style={estilos.modalTextoBotaoSalvar}>Confirmar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+        <View style={styles.legenda}>
+          <Legenda cor="#FF6B1A" texto="Aulas" />
+          <Legenda cor="#0057B8" texto="Confirmadas" />
+          <Legenda cor="#BBB" texto="Disponibilidade" />
         </View>
-      </Modal>
+      </View>
 
-    </SafeAreaView>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Aulas e compromissos do dia</Text>
+        <Text style={styles.dataAgenda}>20 de Maio, Quarta-feira</Text>
+      </View>
+
+      <View style={styles.listaAulas}>
+        <AulaItem
+          hora="10:00"
+          fim="11:00"
+          nome="João Ferreira"
+          materia="Cálculo Diferencial"
+          tipo="Mentoria Online"
+          status="Confirmada"
+          cor="#FF6B1A"
+        />
+
+        <AulaItem
+          hora="14:00"
+          fim="15:00"
+          nome="Maria Eduarda"
+          materia="Programação em Java"
+          tipo="Sala Virtual"
+          status="Confirmada"
+          cor="#0057B8"
+        />
+
+        <AulaItem
+          hora="16:30"
+          fim="17:30"
+          nome="Pedro Henrique"
+          materia="Física Aplicada"
+          tipo="Mentoria Online"
+          status="Pendente"
+          cor="#FF6B1A"
+        />
+      </View>
+
+      <TouchableOpacity style={styles.horariosBtn}>
+        <Feather name="clock" size={22} color="#777" />
+        <Text style={styles.horariosTexto}>Ver horários disponíveis</Text>
+        <Feather name="chevron-right" size={22} color="#777" />
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
-const estilos = StyleSheet.create({
-  recipientePrincipal: { flex: 1, backgroundColor: Colors.background },
-  conteudo: { padding: 20 },
-  textoTitulo: { fontSize: 26, fontWeight: 'bold', color: Colors.primary, marginBottom: 20 },
-  cartaoCalendario: { backgroundColor: Colors.card, borderRadius: 20, padding: 20, marginBottom: 30, borderColor: Colors.border, borderWidth: 1, elevation: 2 },
-  cabecalhoMes: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  textoMes: { fontSize: 18, fontWeight: 'bold', color: Colors.text, textTransform: 'capitalize' },
-  botaoSeta: { padding: 5 },
-  seta: { fontSize: 20, color: Colors.secondary, fontWeight: 'bold' },
-  linhaDiasSemana: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  diaSemana: { width: '13%', textAlign: 'center', fontSize: 14, color: '#888', fontWeight: '600' },
-  gridDias: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start' },
-  bolinhaDia: { width: '14.2%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', borderRadius: 20, marginVertical: 2 },
-  diaSelecionado: { backgroundColor: Colors.primary },
-  textoDia: { fontSize: 16, color: Colors.text },
-  textoDiaSelecionado: { color: Colors.card, fontWeight: 'bold' },
-  pontoIndicador: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: Colors.primary, marginTop: 2 },
-  pontoIndicadorSelecionado: { backgroundColor: Colors.card },
-  subtitulo: { fontSize: 18, fontWeight: 'bold', color: Colors.text, marginBottom: 15 },
-  cartaoAgendamento: { backgroundColor: Colors.card, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderRadius: 15, marginBottom: 15, borderColor: Colors.border, borderWidth: 1, elevation: 1 },
-  nomeProfessor: { fontSize: 16, fontWeight: 'bold', color: Colors.text },
-  materia: { fontSize: 14, color: '#888', marginTop: 4 },
-  tagHorario: { backgroundColor: Colors.input, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
-  textoHorario: { color: Colors.primary, fontWeight: 'bold', fontSize: 14 },
-  cartaoCancelado: { backgroundColor: '#F0F0F0', borderColor: '#E0E0E0', elevation: 0 },
-  textoCancelado: { color: '#A0A0A0', textDecorationLine: 'line-through' },
-  tagHorarioCancelado: { backgroundColor: '#E0E0E0' },
-  modalFundo: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalCartao: { backgroundColor: Colors.card, width: '85%', padding: 25, borderRadius: 20, elevation: 5 },
-  modalTitulo: { fontSize: 20, fontWeight: 'bold', color: Colors.primary, marginBottom: 20, textAlign: 'center' },
-  modalLabel: { fontSize: 14, color: Colors.text, marginBottom: 5, fontWeight: 'bold' },
-  modalInput: { backgroundColor: Colors.input, borderRadius: 10, padding: 12, marginBottom: 15, color: Colors.text },
-  modalBotoes: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-  modalBotaoCancelar: { padding: 12, borderRadius: 10, flex: 1, marginRight: 10, alignItems: 'center', backgroundColor: '#E0E0E0' },
-  modalTextoBotaoCancelar: { color: '#555', fontWeight: 'bold' },
-  modalBotaoSalvar: { padding: 12, borderRadius: 10, flex: 1, marginLeft: 10, alignItems: 'center', backgroundColor: Colors.primary },
-  modalTextoBotaoSalvar: { color: Colors.card, fontWeight: 'bold' }
+function Legenda({ cor, texto }: { cor: string; texto: string }) {
+  return (
+    <View style={styles.itemLegenda}>
+      <View style={[styles.corLegenda, { backgroundColor: cor }]} />
+      <Text style={styles.textoLegenda}>{texto}</Text>
+    </View>
+  );
+}
+
+function AulaItem({ hora, fim, nome, materia, tipo, status, cor }: any) {
+  const pendente = status === 'Pendente';
+
+  return (
+    <View style={styles.aulaCard}>
+      <View style={[styles.linhaCor, { backgroundColor: cor }]} />
+
+      <View style={styles.horaContainer}>
+        <Text style={[styles.hora, { color: cor }]}>{hora}</Text>
+        <Text style={styles.horaFim}>{fim}</Text>
+      </View>
+
+      <View style={styles.infoAula}>
+        <Text style={styles.nomeAluno}>{nome}</Text>
+        <Text style={styles.materia}>{materia}</Text>
+        <Text style={styles.tipoAula}>{tipo}</Text>
+      </View>
+
+      <View style={pendente ? styles.statusPendente : styles.statusConfirmado}>
+        <Text style={pendente ? styles.statusPendenteTexto : styles.statusTexto}>
+          {status}
+        </Text>
+      </View>
+
+      <Feather name="more-vertical" size={20} color="#777" />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F7F7F7',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+  },
+
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+
+  titulo: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#FF6B1A',
+  },
+
+  subtitulo: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 6,
+  },
+
+  iconsHeader: {
+    flexDirection: 'row',
+    gap: 18,
+    marginTop: 18,
+    paddingRight: 8,
+  },
+
+  tabsContainer: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 8,
+    marginTop: 22,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+
+  tabAtiva: {
+    backgroundColor: '#FF6B1A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+  },
+
+  tabAtivaTexto: {
+    color: '#FFF',
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+
+  tabTexto: {
+    color: '#666',
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+
+  badge: {
+    backgroundColor: '#FF6B1A',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
+
+  badgeText: {
+    color: '#FFF',
+    fontWeight: 'bold',
+  },
+
+  calendarioCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    padding: 18,
+    marginTop: 22,
+  },
+
+  calendarioHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  mesTexto: {
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+
+  hojeBtn: {
+    borderWidth: 1,
+    borderColor: '#EEE',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 14,
+  },
+
+  hojeTexto: {
+    color: '#FF6B1A',
+    fontWeight: 'bold',
+  },
+
+  diasSemana: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 26,
+  },
+
+  diaSemana: {
+    width: 38,
+    textAlign: 'center',
+    color: '#666',
+  },
+
+  gridCalendario: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 18,
+  },
+
+  diaNormal: {
+    width: '14.28%',
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  diaAtivo: {
+    width: '14.28%',
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  textDia: {
+    fontSize: 18,
+  },
+
+  textDiaAtivo: {
+    backgroundColor: '#FF6B1A',
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    textAlign: 'center',
+    lineHeight: 42,
+  },
+
+  bolinha: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginTop: 3,
+  },
+
+  legenda: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 18,
+    flexWrap: 'wrap',
+  },
+
+  itemLegenda: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  corLegenda: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    marginRight: 5,
+  },
+
+  textoLegenda: {
+    fontSize: 12,
+    color: '#555',
+  },
+
+  sectionHeader: {
+    marginTop: 28,
+    marginBottom: 14,
+  },
+
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+
+  dataAgenda: {
+    color: '#FF6B1A',
+    fontWeight: '600',
+    marginTop: 4,
+  },
+
+  listaAulas: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+
+  aulaCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEE',
+  },
+
+  linhaCor: {
+    width: 4,
+    height: 55,
+    borderRadius: 2,
+    marginRight: 14,
+  },
+
+  horaContainer: {
+    width: 60,
+  },
+
+  hora: {
+    fontSize: 17,
+    fontWeight: 'bold',
+  },
+
+  horaFim: {
+    color: '#777',
+    marginTop: 4,
+  },
+
+  infoAula: {
+    flex: 1,
+  },
+
+  nomeAluno: {
+    fontWeight: 'bold',
+    fontSize: 15,
+  },
+
+  materia: {
+    color: '#555',
+    marginTop: 3,
+  },
+
+  tipoAula: {
+    color: '#777',
+    marginTop: 3,
+  },
+
+  statusConfirmado: {
+    backgroundColor: '#DDF8E8',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginRight: 8,
+  },
+
+  statusTexto: {
+    color: '#008A46',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+
+  statusPendente: {
+    backgroundColor: '#FFF0D9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginRight: 8,
+  },
+
+  statusPendenteTexto: {
+    color: '#D88400',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+
+  horariosBtn: {
+    backgroundColor: '#FFF',
+    borderRadius: 18,
+    padding: 18,
+    marginTop: 18,
+    marginBottom: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  horariosTexto: {
+    flex: 1,
+    marginLeft: 12,
+    fontWeight: 'bold',
+  },
 });
